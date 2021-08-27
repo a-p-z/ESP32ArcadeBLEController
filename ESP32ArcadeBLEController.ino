@@ -1,11 +1,12 @@
-#include <BleGamepad.h> // library at https://github.com/lemmingDev/ESP32-BLE-Gamepad
+#include <BleGamepad.h>
+#include <WiFi.h>
 
 #define DEVICE_NAME "Arcade BLE Controller"
 #define DEVICE_MANUFACTURER "apz"
 
 #define PIN_UP     25
-#define PIN_DOWN   26
 #define PIN_RIGHT  27
+#define PIN_DOWN   26
 #define PIN_LEFT   14
 #define PIN_A      19
 #define PIN_B      18
@@ -13,8 +14,8 @@
 #define PIN_Y      17
 #define PIN_L      16
 #define PIN_R       4
-#define PIN_START  15
-#define PIN_SELECT 13
+#define PIN_START  13
+#define PIN_SELECT 15
 
 #define BUTTON_A      BUTTON_1
 #define BUTTON_B      BUTTON_2
@@ -24,103 +25,107 @@
 #define BUTTON_L      BUTTON_6
 #define BUTTON_START  BUTTON_7
 #define BUTTON_SELECT BUTTON_8
+#define BUTTON_UP     BUTTON_9
+#define BUTTON_DOWN   BUTTON_10
+#define BUTTON_LEFT   BUTTON_11
+#define BUTTON_RIGHT  BUTTON_12
 
-BleGamepad controller(DEVICE_NAME, DEVICE_MANUFACTURER, 100);
+#define NUM_OF_BUTTONS     12
+#define NUM_OF_HAT_SWITCHES 0
 
-signed char dpadOld = DPAD_CENTERED;
+BleGamepad bleGamepad(DEVICE_NAME, DEVICE_MANUFACTURER, 100);
+
+const byte pins[NUM_OF_BUTTONS] = {
+  PIN_A,
+  PIN_B,
+  PIN_X,
+  PIN_Y,
+  PIN_L,
+  PIN_R,
+  PIN_START,
+  PIN_SELECT,
+    PIN_UP,
+  PIN_DOWN,
+  PIN_LEFT,
+  PIN_RIGHT};
+
+byte states[NUM_OF_BUTTONS] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+
+const uint8_t buttons[NUM_OF_BUTTONS] = {
+  BUTTON_A,
+  BUTTON_B,
+  BUTTON_X,
+  BUTTON_Y,
+  BUTTON_L,
+  BUTTON_R,
+  BUTTON_START,
+  BUTTON_SELECT,
+  BUTTON_UP,
+  BUTTON_DOWN,
+  BUTTON_LEFT,
+  BUTTON_RIGHT};
+
+const String buttonLabels[NUM_OF_BUTTONS] = {
+  "A",
+  "B",
+  "X",
+  "Y",
+  "L",
+  "R",
+  "START",
+  "SELECT",
+  "UP",
+  "DOWN",
+  "LEFT",
+  "RIGHT"};
+
+bool sendReport = false;
+
+bool pressOrRelease(const byte i);
 
 void setup() {
   Serial.begin(115200);
-  pinMode(PIN_UP,     INPUT);
-  pinMode(PIN_RIGHT,  INPUT);
-  pinMode(PIN_DOWN,   INPUT);
-  pinMode(PIN_LEFT,   INPUT);
-  pinMode(PIN_A,      INPUT);
-  pinMode(PIN_B,      INPUT);
-  pinMode(PIN_X,      INPUT);
-  pinMode(PIN_Y,      INPUT);
-  pinMode(PIN_R,      INPUT);
-  pinMode(PIN_L,      INPUT);
-  pinMode(PIN_START,  INPUT);
-  pinMode(PIN_SELECT, INPUT);
-  controller.begin();
+  setCpuFrequencyMhz(80);
+  WiFi.mode(WIFI_OFF);
+  
+  for (int i = 0; i < NUM_OF_BUTTONS; i++) {
+    pinMode(pins[i], INPUT);
+  }
+  
+  bleGamepad.setAutoReport(true);
+  bleGamepad.setControllerType(CONTROLLER_TYPE_GAMEPAD);
+  bleGamepad.begin(NUM_OF_BUTTONS, NUM_OF_HAT_SWITCHES);
 }
 
 void loop() {
-  dpadRead(PIN_UP, PIN_RIGHT, PIN_DOWN, PIN_LEFT);
-  buttonRead(PIN_A,      BUTTON_A, "A");
-  buttonRead(PIN_B,      BUTTON_B, "B");
-  buttonRead(PIN_X,      BUTTON_X, "X");
-  buttonRead(PIN_Y,      BUTTON_Y, "Y");
-  buttonRead(PIN_R,      BUTTON_R, "R");
-  buttonRead(PIN_L,      BUTTON_L, "L");
-  buttonRead(PIN_START,  BUTTON_START,  "START");
-  buttonRead(PIN_SELECT, BUTTON_SELECT, "SELECT");
+  for (byte i = 0; i < NUM_OF_BUTTONS; i++) {
+    states[i] = digitalRead(pins[i]);
+  }
+
+  for (byte i = 0; i < NUM_OF_BUTTONS; i++) {
+    sendReport |= pressOrRelease(i);
+  }
+
+  if (sendReport) {
+    bleGamepad.sendReport();
+    sendReport = false;
+  }
+  
   delay(10);
 }
 
-void dpadRead(uint16_t pinUp, uint16_t pinRight, uint16_t pinDown, uint16_t pinLeft) {\
-  int stateUp = digitalRead(pinUp);
-  int stateRight = digitalRead(pinRight);
-  int stateDown = digitalRead(pinDown);
-  int stateLeft = digitalRead(pinLeft);
-  String dpadString;
-  signed char dpad;
-  
-  if (stateUp == HIGH && stateRight == LOW && stateDown == LOW && stateLeft == LOW) {
-    dpadString = "DPAD_UP";
-    dpad = DPAD_UP;
-    
-  } else if (stateUp == HIGH && stateRight == HIGH && stateDown == LOW && stateLeft == LOW) {
-    dpadString = "DPAD_UP_RIGHT";
-    dpad = DPAD_UP_RIGHT;
- 
-  } else if (stateUp == LOW && stateRight == HIGH && stateDown == LOW && stateLeft == LOW) {
-    dpadString = "DPAD_RIGHT";
-    dpad = DPAD_RIGHT;  
-  
-  } else if (stateUp == LOW && stateRight == HIGH && stateDown == HIGH && stateLeft == LOW) {
-    dpadString = "DPAD_DOWN_RIGHT";
-    dpad = DPAD_DOWN_RIGHT;  
-  
-  } else if (stateUp == LOW && stateRight == LOW && stateDown == HIGH && stateLeft == LOW) {
-    dpadString = "DPAD_DOWN";
-    dpad = DPAD_DOWN;  
-  
-  } else if (stateUp == LOW && stateRight == LOW && stateDown == HIGH && stateLeft == HIGH) {
-    dpadString = "DPAD_DOWN_LEFT";
-    dpad = DPAD_DOWN_LEFT;  
-  
-  } else if (stateUp == LOW && stateRight == LOW && stateDown == LOW && stateLeft == HIGH) {
-    dpadString = "DPAD_LEFT";
-    dpad = DPAD_LEFT;  
-  
-  } else if (stateUp == HIGH && stateRight == LOW && stateDown == LOW && stateLeft == HIGH) {
-    dpadString = "DPAD_UP_LEFT";
-    dpad = DPAD_UP_LEFT;  
-  
-  } else {
-    dpadString = "DPAD_CENTERED";
-    dpad = DPAD_CENTERED;
-  }
-
-  if(dpad != dpadOld) {
-    Serial.println(dpadString);
-    controller.setAxes(0, 0, 0, 0, 0, 0, dpad);
-  }
-  
-  dpadOld = dpad;  
-}
-
-void buttonRead(uint16_t pin, uint16_t button, String label) {
-  int state = digitalRead(pin);
-  if (state == HIGH && !controller.isPressed(button)) {
-    Serial.println(label);
-    controller.press(button);
-    dpadOld = DPAD_CENTERED;
+bool pressOrRelease(const byte i) {
+  if (states[i] == HIGH && !bleGamepad.isPressed(buttons[i])) {
+    bleGamepad.press(buttons[i]);
+    Serial.println(buttonLabels[i] + " pressed");
+    return true;
      
-  } else if (state == LOW && controller.isPressed(button)) {
-    controller.release(button);
-    dpadOld = DPAD_CENTERED;
+  } else if (states[i] == LOW && bleGamepad.isPressed(buttons[i])) {
+    bleGamepad.release(buttons[i]);
+    Serial.println(buttonLabels[i] + " released");
+    return true;
+    
+  } else {
+    return false;
   }
 }
