@@ -1,4 +1,4 @@
-#include <BleGamepad.h>
+#include <BleGamepad.h> // version 0.4.3
 #include <WiFi.h>
 
 #define DEVICE_NAME "Arcade BLE Controller"
@@ -92,9 +92,13 @@ void setup() {
     pinMode(pins[i], INPUT);
   }
   
-  bleGamepad.setAutoReport(true);
-  bleGamepad.setControllerType(CONTROLLER_TYPE_GAMEPAD);
-  bleGamepad.begin(NUM_OF_BUTTONS, NUM_OF_HAT_SWITCHES);
+  BleGamepadConfiguration bleGamepadConfig;
+  bleGamepadConfig.setAutoReport(true);
+  bleGamepadConfig.setControllerType(CONTROLLER_TYPE_GAMEPAD);
+  bleGamepadConfig.setButtonCount(NUM_OF_BUTTONS);
+  bleGamepadConfig.setHatSwitchCount(NUM_OF_HAT_SWITCHES);
+
+  bleGamepad.begin(&bleGamepadConfig);
 }
 
 void loop() {
